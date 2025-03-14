@@ -13,7 +13,7 @@ import JobDetails from './pages/JobDetails';
 import AdminDashboard from './pages/AdminDashboard';
 import CreateJob from './pages/CreateJob';
 import Applications from './pages/Applications';
-import { loginSuccess } from './redux/slices/authSlice';
+import { loginSuccess, logout } from './redux/slices/authSlice';
 import api from './utils/api';
 import 'react-toastify/dist/ReactToastify.css';
 import './index.css';
@@ -24,18 +24,27 @@ const AuthInitializer = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const response = await api.get('/auth/me');
-          dispatch(loginSuccess({
-            user: response.data.data.user,
-            token
-          }));
-        } catch (error) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const response = await api.get('/auth/me');
+            if (response.data?.data?.user) {
+              dispatch(loginSuccess({
+                user: response.data.data.user,
+                token
+              }));
+            } else {
+              throw new Error('Invalid user data received');
+            }
+          } catch (error) {
+            console.error('Error verifying auth state:', error);
+            dispatch(logout());
+          }
         }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        dispatch(logout());
       }
     };
 
