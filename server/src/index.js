@@ -27,9 +27,23 @@ const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+
+if (process.env.NODE_ENV !== 'production') {
+  import('dotenv').then(dotenv => dotenv.config());
+}
+
+const mongoURI = process.env.MONGO_URI;
+if (!mongoURI) {
+  throw new Error("MONGO_URI is not defined");
+}
+
+mongoose.connect(mongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -46,8 +60,10 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong!' });
 });
+console.log('Mongo URI:', process.env.MONGO_URI);
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
