@@ -7,11 +7,27 @@ const api = axios.create({
   },
 });
 
+// Function to check if token is expired
+const isTokenExpired = (token) => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch (error) {
+    return true;
+  }
+};
+
 // Add a request interceptor to include the auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      if (isTokenExpired(token)) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject('Token expired');
+      }
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -27,6 +43,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '/login';
     }
     return Promise.reject(error);
