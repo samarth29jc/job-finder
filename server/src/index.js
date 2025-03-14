@@ -27,9 +27,24 @@ const __dirname = path.dirname(__filename);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+import mongoose from 'mongoose';
+// Only load dotenv locally (if needed)
+if (process.env.NODE_ENV !== 'production') {
+  import('dotenv').then(dotenv => dotenv.config());
+}
+
+const mongoURI = process.env.MONGO_URI;
+if (!mongoURI) {
+  throw new Error("MONGO_URI is not defined");
+}
+
+mongoose.connect(mongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log('MongoDB connected successfully'))
+  .catch(err => console.error('MongoDB connection error:', err));
+
 
 // Routes
 app.use('/api/auth', authRoutes);
