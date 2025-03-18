@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { loginStart, loginSuccess, loginFailure, clearError } from '../redux/slices/authSlice';
 import api from '../utils/api';
@@ -13,12 +13,22 @@ const Login = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isLoading, error } = useSelector((state) => state.auth);
+  const location = useLocation();
+  const { isLoading, error, user } = useSelector((state) => state.auth);
+  
+  // Get the path the user was trying to access before being redirected to login
+  const from = location.state?.from || '/';
 
   useEffect(() => {
+    // If user is already logged in, redirect to home or previous page
+    if (user) {
+      console.log("User already logged in, redirecting to:", from);
+      navigate(from, { replace: true });
+    }
+    
     // Clear any existing errors when component mounts
     dispatch(clearError());
-  }, [dispatch]);
+  }, [dispatch, user, navigate, from]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -33,17 +43,33 @@ const Login = () => {
 
     try {
       dispatch(loginStart());
+      console.log("Attempting login with email:", formData.email);
+      
       const response = await api.post('/auth/login', formData);
       
       if (response.data?.status === 'success') {
-        dispatch(loginSuccess(response.data));
+        const userData = response.data.data?.user;
+        const token = response.data.token;
+        
+        if (!userData || !token) {
+          throw new Error('Invalid response data format');
+        }
+        
+        console.log(`Login successful for user: ${userData.name}, role: ${userData.role}`);
+        
+        dispatch(loginSuccess({
+          user: userData,
+          token
+        }));
+        
         toast.success('Login successful!');
-        navigate('/');
+        navigate(from, { replace: true });
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      console.error('Login error:', errorMessage);
       dispatch(loginFailure(errorMessage));
       toast.error(errorMessage);
     }
@@ -127,6 +153,13 @@ const Login = () => {
                 'Sign in'
               )}
             </button>
+          </div>
+          
+          {/* Optional admin login hint */}
+          <div className="text-center text-xs text-gray-500">
+            <p>
+              To test admin features, use admin login credentials.
+            </p>
           </div>
         </form>
       </div>

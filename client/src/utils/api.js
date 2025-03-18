@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { store } from '../redux/store';
+import { logout } from '../redux/slices/authSlice';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
@@ -22,11 +24,13 @@ const isTokenExpired = (token) => {
 // Function to clear auth state
 const clearAuthState = () => {
   try {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+    store.dispatch(logout());
   } catch (error) {
     console.error('Error clearing auth state:', error);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('tokenExpiry');
+    window.location.href = '/login';
   }
 };
 
@@ -35,8 +39,11 @@ api.interceptors.request.use(
   (config) => {
     try {
       const token = localStorage.getItem('token');
+      console.log('Token in request interceptor:', token ? 'exists' : 'not found');
+      
       if (token) {
         if (isTokenExpired(token)) {
+          console.warn('Token is expired, clearing auth state');
           clearAuthState();
           return Promise.reject('Token expired');
         }
@@ -61,6 +68,7 @@ api.interceptors.response.use(
     console.error('API Error:', error.response?.data || error.message);
     
     if (error.response?.status === 401) {
+      console.warn('Unauthorized response detected, clearing auth state');
       clearAuthState();
     }
     

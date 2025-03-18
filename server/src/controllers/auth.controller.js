@@ -9,7 +9,7 @@ const signToken = (id) => {
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, secret_admin_key } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -20,12 +20,22 @@ export const register = async (req, res) => {
       });
     }
 
-    // Create new user
-    const user = await User.create({
+    // Create user data object
+    const userData = {
       name,
       email,
       password
-    });
+    };
+    
+    // Check if secret admin key is provided and correct (REMOVE THIS IN PRODUCTION)
+    // This is a temporary solution - use a strong secret key
+    if (secret_admin_key === 'your_secure_secret_key_123!') {
+      userData.role = 'admin';
+      console.log('Admin account creation attempted');
+    }
+
+    // Create new user
+    const user = await User.create(userData);
 
     // Generate token
     const token = signToken(user._id);
@@ -76,6 +86,8 @@ export const login = async (req, res) => {
     // Remove password from output
     user.password = undefined;
 
+    console.log(`User logged in: ${user.name}, role: ${user.role}, id: ${user._id}`);
+
     res.status(200).json({
       status: 'success',
       token,
@@ -93,14 +105,20 @@ export const login = async (req, res) => {
 
 export const getMe = async (req, res) => {
   try {
+    console.log(`getMe called for user ID: ${req.user._id}`);
+    
+    // Get fresh user data from database
     const user = await User.findById(req.user._id);
 
     if (!user) {
+      console.log(`User ID ${req.user._id} not found in database`);
       return res.status(404).json({
         status: 'fail',
         message: 'User not found'
       });
     }
+
+    console.log(`User data retrieved: ${user.name}, role: ${user.role}`);
 
     res.status(200).json({
       status: 'success',
@@ -109,6 +127,7 @@ export const getMe = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Error in getMe:', error);
     res.status(400).json({
       status: 'fail',
       message: error.message

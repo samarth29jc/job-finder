@@ -18,7 +18,23 @@ const PORT = process.env.PORT || 5000;
 
 // CORS configuration
 const corsOptions = {
-  origin: ['https://job-finder-lyart.vercel.app', 'http://localhost:5173'],
+  origin: function(origin, callback) {
+    // Allow any origin in development
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://job-finder-lyart.vercel.app',
+      // Add your production frontend URL here if different
+    ];
+    
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log("Origin rejected by CORS:", origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -28,6 +44,18 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Add request/response logging middleware for debugging
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.originalUrl} - Authorization: ${req.headers.authorization ? 'Provided' : 'None'}`);
+  
+  const originalSend = res.send;
+  res.send = function(data) {
+    console.log(`Response for ${req.method} ${req.originalUrl}: ${res.statusCode}`);
+    return originalSend.call(this, data);
+  };
+  next();
+});
 
 // Set up static file serving for uploads
 const __filename = fileURLToPath(import.meta.url);
@@ -39,9 +67,10 @@ if (process.env.NODE_ENV !== 'production') {
   import('dotenv').then(dotenv => dotenv.config());
 }
 
-const mongoURI = process.env.MONGODB_URI;
+// Use MONGODB_URI from env if available, otherwise use mongoURI
+const mongoURI = process.env.MONGODB_URI || process.env.mongoURI;
 if (!mongoURI) {
-  throw new Error("MONGODB_URI is not defined");
+  throw new Error("MongoDB connection URI is not defined");
 }
 
 mongoose.connect(mongoURI, {
@@ -61,15 +90,25 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to Job Portal API' });
 });
 
+// Add diagnostic route for debugging
+app.get('/api/check-auth', (req, res) => {
+  const authHeader = req.headers.authorization;
+  res.json({
+    authHeader: authHeader ? 'Provided' : 'Missing',
+    format: authHeader?.startsWith('Bearer ') ? 'Valid' : 'Invalid',
+    token: authHeader?.split(' ')[1]?.substring(0, 10) + '...' || 'None'
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  console.error('Server Error:', err.stack);
+  res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
-console.log('Mongo URI:', process.env.MONGO_URI);
 
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`CORS enabled for: http://localhost:5173, http://localhost:3000, https://job-finder-lyart.vercel.app`);
 });
 

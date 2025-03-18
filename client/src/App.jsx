@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Provider, useDispatch } from 'react-redux';
+import { Provider, useDispatch, useSelector } from 'react-redux';
 import { ToastContainer } from 'react-toastify';
 import { store } from './redux/store';
 import MainLayout from './layouts/MainLayout';
@@ -21,26 +21,48 @@ import './index.css';
 // Component to handle auth state initialization
 const AuthInitializer = ({ children }) => {
   const dispatch = useDispatch();
+  const { user, token } = useSelector(state => state.auth);
 
   useEffect(() => {
+    console.log("AuthInitializer running, current user:", user?.name, "token exists:", !!token);
+    
     const initializeAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            const response = await api.get('/auth/me');
-            if (response.data?.data?.user) {
-              dispatch(loginSuccess({
-                user: response.data.data.user,
-                token
-              }));
-            } else {
-              throw new Error('Invalid user data received');
+        // If we already have user and token in Redux, no need to fetch again
+        if (user && token) {
+          console.log("Already authenticated as:", user.name, "with role:", user.role);
+          return;
+        }
+        
+        // Otherwise, check localStorage
+        const storedToken = localStorage.getItem('token');
+        if (!storedToken) {
+          console.log("No token in localStorage, user is not authenticated");
+          return;
+        }
+
+        console.log("Found token in localStorage, verifying with server...");
+        try {
+          // Set the token in header for this request
+          const response = await api.get('/auth/me', {
+            headers: {
+              Authorization: `Bearer ${storedToken}`
             }
-          } catch (error) {
-            console.error('Error verifying auth state:', error);
+          });
+          
+          if (response.data?.status === 'success' && response.data?.data?.user) {
+            console.log("Server verified user:", response.data.data.user.name, "with role:", response.data.data.user.role);
+            dispatch(loginSuccess({
+              user: response.data.data.user,
+              token: storedToken
+            }));
+          } else {
+            console.warn("Server returned invalid user data");
             dispatch(logout());
           }
+        } catch (error) {
+          console.error('Error verifying auth with server:', error.message);
+          dispatch(logout());
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -49,7 +71,7 @@ const AuthInitializer = ({ children }) => {
     };
 
     initializeAuth();
-  }, [dispatch]);
+  }, [dispatch, user, token]);
 
   return children;
 };
@@ -98,7 +120,7 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-            <ToastContainer />
+            <ToastContainer position="top-right" autoClose={3000} />
           </MainLayout>
         </AuthInitializer>
       </Router>
